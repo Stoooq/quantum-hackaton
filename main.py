@@ -13,15 +13,17 @@ from qiskit_machine_learning.kernels import FidelityQuantumKernel
 df = pd.read_csv('alzheimers_disease_data.csv')
 y = df['Diagnosis']
 X = df.drop(['Diagnosis', 'DoctorInCharge', 'PatientID'], axis=1)
-X = X.head(25)
-y = y.head(25)
+X = X.head(150)
+y = y.head(150)
+scale = MinMaxScaler()
+X = pd.DataFrame(scale.fit_transform(X), columns=X.columns)
 
 def quantum_kernel_svc_pipeline(X, y,
-                                n_qubits=10,
+                                n_qubits=5,
                                 test_size=0.3,
                                 random_state=42,
-                                p_reps=1,
-                                entanglement='full'):
+                                p_reps=2,
+                                entanglement='full',):
     feature_names = X.columns.tolist()
     X = X.values
     y = np.asarray(y)
@@ -50,27 +52,23 @@ def quantum_kernel_svc_pipeline(X, y,
     feature_map = ZZFeatureMap(feature_dimension=n_qubits, reps=p_reps, entanglement=entanglement)
     
     quantum_kernel = FidelityQuantumKernel(feature_map=feature_map)
-
-    def quantum_kernel_func(X, Y=None):
-        return quantum_kernel.evaluate(x_vec=X, y_vec=Y)
-    
-    m = 10
-    nystroem = Nystroem(kernel=quantum_kernel_func, n_components=m, random_state=42)
     
     print("przed")
-    K_train = nystroem.fit_transform(X_train)
+    K_train = quantum_kernel.evaluate(x_vec=X_train)
     print("za")
 
-    K_test = nystroem.transform(X_test) 
+    K_test = quantum_kernel.evaluate(x_vec=X_test, y_vec=X_train)
 
-    svc = SVC(kernel='linear')
+    svc = SVC(kernel='precomputed')
     svc.fit(K_train, y_train)
     y_pred = svc.predict(K_test)
 
     acc = accuracy_score(y_test, y_pred)
     cm = confusion_matrix(y_test, y_pred)
+    cr = classification_report(y_test, y_pred)
 
     print(acc)
+    print(cm)
+    print(cr)
 
 quantum_kernel_svc_pipeline(X, y)
-
