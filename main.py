@@ -5,70 +5,67 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.decomposition import PCA
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
-from sklearn.kernel_approximation import Nystroem
-from qiskit_aer import AerSimulator
 from qiskit.circuit.library import ZZFeatureMap
 from qiskit_machine_learning.kernels import FidelityQuantumKernel
 
-df = pd.read_csv('alzheimers_disease_data.csv')
-y = df['Diagnosis']
-X = df.drop(['Diagnosis', 'DoctorInCharge', 'PatientID'], axis=1)
-X = X.head(150)
-y = y.head(150)
-scale = MinMaxScaler()
-X = pd.DataFrame(scale.fit_transform(X), columns=X.columns)
+def qsvc_predict_many(X=None, y=None, n_qubits=5, random_state=42, p_reps=2, entanglement='full'):
+    df = pd.read_csv('alzheimers_disease_data.csv')
+    y = df['Diagnosis']
+    X = df.drop(['Diagnosis', 'DoctorInCharge', 'PatientID'], axis=1)
 
-def quantum_kernel_svc_pipeline(X, y,
-                                n_qubits=5,
-                                test_size=0.3,
-                                random_state=42,
-                                p_reps=2,
-                                entanglement='full',):
-    feature_names = X.columns.tolist()
-    X = X.values
-    y = np.asarray(y)
+    X = X.head(150)
+    y = y.head(150)
+
+    scaler = MinMaxScaler()
+    X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
 
     pca = PCA(n_components=n_qubits, random_state=random_state)
-    X_reduced = pca.fit_transform(X)
+    X_reduced = pca.fit_transform(X_scaled)
 
-    loadings = (pca.components_.T) * np.sqrt(pca.explained_variance_)
-    importance = np.sum(loadings**2, axis=1)
-    importance_norm = importance / np.max(importance)
+    feature_scaler = MinMaxScaler(feature_range=(0, np.pi))
+    X_final = feature_scaler.fit_transform(X_reduced)
 
-    df = pd.DataFrame({
-        'feature': feature_names,
-        'importance': importance,
-        'importance_norm': importance_norm
-    }).sort_values('importance', ascending=False).reset_index(drop=True)
-
-    print(df.head())
-
-    scaler = MinMaxScaler(feature_range=(0, np.pi))
-    X_scaled = scaler.fit_transform(X_reduced)
-
-    X_train, X_test, y_train, y_test = train_test_split(
-    X_scaled, y, test_size=test_size, random_state=random_state, stratify=y if len(np.unique(y))>1 else None)
-    
     feature_map = ZZFeatureMap(feature_dimension=n_qubits, reps=p_reps, entanglement=entanglement)
-    
     quantum_kernel = FidelityQuantumKernel(feature_map=feature_map)
+
+    K_train = quantum_kernel.evaluate(x_vec=X_final)
+
+    trained_model = SVC(kernel='precomputed')
+    trained_model.fit(K_train, y)
+
+    y_pred_train = trained_model.predict(K_train)
     
-    print("przed")
-    K_train = quantum_kernel.evaluate(x_vec=X_train)
-    print("za")
-
-    K_test = quantum_kernel.evaluate(x_vec=X_test, y_vec=X_train)
-
-    svc = SVC(kernel='precomputed')
-    svc.fit(K_train, y_train)
-    y_pred = svc.predict(K_test)
-
-    acc = accuracy_score(y_test, y_pred)
-    cm = confusion_matrix(y_test, y_pred)
-    cr = classification_report(y_test, y_pred)
-
-    print(acc)
+    print("Model został wytrenowany!")
+    print("\n=== WYNIKI EWALUACJI MODELU ===")
+    print(f"Accuracy na danych treningowych: {accuracy_score(y, y_pred_train):.3f}")
+    
+    print("\nConfusion Matrix:")
+    cm = confusion_matrix(y, y_pred_train)
     print(cm)
+    
+    print("\nClassification Report:")
+    cr = classification_report(y, y_pred_train, target_names=['Zdrowy', 'Alzheimer'])
     print(cr)
+    print("=" * 40)
+    
+    return trained_model, scaler, pca, feature_scaler, X_final, y
 
-quantum_kernel_svc_pipeline(X, y)
+def qsvc_predict_one(patient_data, trained_model, scaler, pca, feature_scaler, X_train_final):
+    df = pd.read_csv('alzheimers_disease_data.csv')
+    feature_names = df.drop(['Diagnosis', 'DoctorInCharge', 'PatientID'], axis=1).columns.tolist()
+    
+    patient_df = pd.DataFrame([patient_data], columns=feature_names)
+    patient_scaled = scaler.transform(patient_df)
+    patient_reduced = pca.transform(patient_scaled)
+    
+    patient_final = feature_scaler.transform(patient_reduced)
+    n_qubits = 5
+    feature_map = ZZFeatureMap(feature_dimension=n_qubits, reps=2, entanglement='full')
+    quantum_kernel = FidelityQuantumKernel(feature_map=feature_map)
+
+    K_test = quantum_kernel.evaluate(x_vec=patient_final, y_vec=X_train_final)
+
+    prediction = trained_model.predict(K_test)
+    probability = trained_model.decision_function(K_test)
+    
+    return int(prediction[0]), float(probability[0])
