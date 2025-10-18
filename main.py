@@ -1,14 +1,14 @@
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
 from sklearn.decomposition import PCA
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from qiskit.circuit.library import ZZFeatureMap
 from qiskit_machine_learning.kernels import FidelityQuantumKernel
 
-def qsvc_predict_many(X=None, y=None, n_qubits=5, random_state=42, p_reps=2, entanglement='full'):
+def qsvc_predict_many(X=None, y=None, n_qubits=5, random_state=42, p_reps=2, entanglement='full', test_size=0.3):
     df = pd.read_csv('alzheimers_disease_data.csv')
     y = df['Diagnosis']
     X = df.drop(['Diagnosis', 'DoctorInCharge', 'PatientID'], axis=1)
@@ -19,36 +19,42 @@ def qsvc_predict_many(X=None, y=None, n_qubits=5, random_state=42, p_reps=2, ent
     scaler = MinMaxScaler()
     X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
 
+    poly = PolynomialFeatures(degree=2, include_bias=False, interaction_only=False)
+    X_poly = poly.fit_transform(X_scaled)
+
     pca = PCA(n_components=n_qubits, random_state=random_state)
-    X_reduced = pca.fit_transform(X_scaled)
+    X_reduced = pca.fit_transform(X_poly)
 
     feature_scaler = MinMaxScaler(feature_range=(0, np.pi))
     X_final = feature_scaler.fit_transform(X_reduced)
 
+    X_train, X_test, y_train, y_test = train_test_split(X_final, y, test_size=test_size, random_state=random_state, stratify=y)
+
     feature_map = ZZFeatureMap(feature_dimension=n_qubits, reps=p_reps, entanglement=entanglement)
     quantum_kernel = FidelityQuantumKernel(feature_map=feature_map)
 
-    K_train = quantum_kernel.evaluate(x_vec=X_final)
+    K_train = quantum_kernel.evaluate(x_vec=X_train)
 
     trained_model = SVC(kernel='precomputed')
-    trained_model.fit(K_train, y)
+    trained_model.fit(K_train, y_train)
 
-    y_pred_train = trained_model.predict(K_train)
+    K_test = quantum_kernel.evaluate(x_vec=X_test, y_vec=X_train)
+    y_pred_test = trained_model.predict(K_test)
     
     print("Model został wytrenowany!")
-    print("\n=== WYNIKI EWALUACJI MODELU ===")
-    print(f"Accuracy na danych treningowych: {accuracy_score(y, y_pred_train):.3f}")
+    print(f"Rozmiar zbioru testowego: {len(X_test)}")
     
-    print("\nConfusion Matrix:")
-    cm = confusion_matrix(y, y_pred_train)
-    print(cm)
+    print(f"Accuracy na danych testowych: {accuracy_score(y_test, y_pred_test):.3f}")
+    
+    print("Confusion Matrix:")
+    cm_test = confusion_matrix(y_test, y_pred_test)
+    print(cm_test)
     
     print("\nClassification Report:")
-    cr = classification_report(y, y_pred_train, target_names=['Zdrowy', 'Alzheimer'])
-    print(cr)
-    print("=" * 40)
+    cr_test = classification_report(y_test, y_pred_test, target_names=['Zdrowy', 'Alzheimer'])
+    print(cr_test)
     
-    return trained_model, scaler, pca, feature_scaler, X_final, y
+    return trained_model, scaler, pca, feature_scaler, X_train, y_train
 
 def qsvc_predict_one(patient_data, trained_model, scaler, pca, feature_scaler, X_train_final):
     df = pd.read_csv('alzheimers_disease_data.csv')
