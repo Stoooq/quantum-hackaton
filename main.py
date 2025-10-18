@@ -50,17 +50,22 @@ def qsvc_predict_many(X=None, y=None, n_qubits=5, random_state=42, p_reps=2, ent
     cr_test = classification_report(y_test, y_pred_test, target_names=['Zdrowy', 'Alzheimer'])
     print(cr_test)
     
-    return trained_model, scaler, pca, feature_scaler, X_train, y_train
+    return trained_model, scaler, poly, pca, feature_scaler, X_train, y_train
 
-def qsvc_predict_one(patient_data, trained_model, scaler, pca, feature_scaler, X_train_final):
+def qsvc_predict_one(patient_data, trained_model, scaler, poly, pca, feature_scaler, X_train_final):
     df = pd.read_csv('alzheimers_disease_data.csv')
     feature_names = df.drop(['Diagnosis', 'DoctorInCharge', 'PatientID'], axis=1).columns.tolist()
     
     patient_df = pd.DataFrame([patient_data], columns=feature_names)
+    
     patient_scaled = scaler.transform(patient_df)
-    patient_reduced = pca.transform(patient_scaled)
+
+    patient_poly = poly.transform(patient_scaled)
+    
+    patient_reduced = pca.transform(patient_poly)
     
     patient_final = feature_scaler.transform(patient_reduced)
+    
     n_qubits = 5
     feature_map = ZZFeatureMap(feature_dimension=n_qubits, reps=2, entanglement='full')
     quantum_kernel = FidelityQuantumKernel(feature_map=feature_map)
