@@ -365,7 +365,7 @@
         </form>
         
         <div class="loading" id="loading">
-            <p>⚛️ Wykonywanie quantum machine learning...</p>
+            <p>Wykonywanie</p>
         </div>
         
         <div class="error" id="error"></div>
@@ -373,6 +373,8 @@
         <div class="result" id="result">
             <h3 id="resultTitle"></h3>
             <p id="resultText"></p>
+            <p><strong>Poziom ryzyka:</strong> <span id="riskLevel"></span></p>
+            <p><strong>Opis:</strong> <span id="riskDescription"></span></p>
             <p><strong>Pewność diagnozy:</strong> <span id="confidence"></span></p>
         </div>
     </div>
@@ -388,7 +390,6 @@
                 data[key] = parseFloat(value);
             }
             
-            // Pokaż loading
             document.getElementById('loading').style.display = 'block';
             document.getElementById('result').style.display = 'none';
             document.getElementById('error').style.display = 'none';
@@ -405,18 +406,25 @@
                 const result = await response.json();
                 
                 if (response.ok) {
-                    // Pokaż wynik
                     const resultDiv = document.getElementById('result');
                     const isPositive = result.prediction === 1;
+                    const isHighRisk = result.abs_confidence < 0.5;
                     
-                    resultDiv.className = 'result ' + (isPositive ? 'positive' : 'negative');
+                    if (isHighRisk) {
+                        resultDiv.className = 'result positive';
+                    } else {
+                        resultDiv.className = 'result ' + (isPositive ? 'positive' : 'negative');
+                    }
+                    
                     document.getElementById('resultTitle').textContent = 
-                        isPositive ? '⚠️ Ryzyko Alzheimera' : '✅ Niskie Ryzyko';
+                        isPositive ? 'Ryzyko Alzheimera' : 'Niskie Ryzyko';
                     document.getElementById('resultText').textContent = 
                         isPositive ? 'Model wskazuje na ryzyko występowania choroby Alzheimera. Zalecana konsultacja z lekarzem.' 
                                    : 'Model nie wskazuje na ryzyko występowania choroby Alzheimera.';
-                    document.getElementById('confidence').textContent = 
-                        Math.abs(result.confidence).toFixed(3);
+                    
+                    document.getElementById('riskLevel').textContent = result.risk_level;
+                    document.getElementById('riskDescription').textContent = result.risk_description;
+                    document.getElementById('confidence').textContent = result.abs_confidence.toFixed(3);
                     
                     resultDiv.style.display = 'block';
                 } else {

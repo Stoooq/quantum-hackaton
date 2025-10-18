@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
+from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures, StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, classification_report
@@ -15,6 +15,10 @@ def qsvc_predict_many(X=None, y=None, n_qubits=5, random_state=42, p_reps=2, ent
 
     X = X.head(150)
     y = y.head(150)
+
+    classic_svc(X, y, random_state=random_state, test_size=test_size)
+
+    print("Trenowanie modelu z kwantowym kernelem...")
 
     scaler = MinMaxScaler()
     X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
@@ -76,3 +80,24 @@ def qsvc_predict_one(patient_data, trained_model, scaler, poly, pca, feature_sca
     probability = trained_model.decision_function(K_test)
     
     return int(prediction[0]), float(probability[0])
+
+def classic_svc(X, y, random_state, test_size):
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state, stratify=y)
+
+    scaler = StandardScaler()
+    X_transformed = scaler.fit_transform(X_train)
+    svc = SVC(kernel="linear")
+    svc.fit(X_transformed, y_train)
+
+    y_pred = svc.predict(X_test)
+
+    print("Model klasyczny został wytrenowany!")
+    print(f"(klasyczny) Rozmiar zbioru testowego: {len(X_test)}")
+    
+    print(f"(klasyczny) Accuracy na danych testowych: {accuracy_score(y_test, y_pred):.3f}")
+    
+    print("\n(klasyczny)Classification Report:")
+    cr_test = classification_report(y_test, y_pred, target_names=['Zdrowy', 'Alzheimer'])
+    print(cr_test)
+
+

@@ -44,10 +44,24 @@ def predict():
         
         prediction, confidence = qsvc_predict_one(patient_data, trained_model, scaler, poly, pca, feature_scaler, X_train_final)
         
+        abs_confidence = abs(confidence)
+        if abs_confidence < 0.5:
+            risk_level = "Wysokie ryzyko"
+            risk_description = "Niska pewność predykcji - zalecana dodatkowa diagnostyka"
+        elif abs_confidence < 0.8:
+            risk_level = "Średnie ryzyko"
+            risk_description = "Umiarkowana pewność predykcji"
+        else:
+            risk_level = "Niskie ryzyko" if prediction == 0 else "Wysokie ryzyko"
+            risk_description = "Wysoka pewność predykcji"
+        
         result = {
             'prediction': prediction,
             'diagnosis': 'Alzheimer' if prediction == 1 else 'Zdrowy',
-            'confidence': confidence
+            'confidence': confidence,
+            'abs_confidence': abs_confidence,
+            'risk_level': risk_level,
+            'risk_description': risk_description
         }
         
         return jsonify(result)
