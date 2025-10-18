@@ -4,7 +4,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
 from sklearn.decomposition import PCA
 from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.metrics import accuracy_score, classification_report
 from qiskit.circuit.library import ZZFeatureMap
 from qiskit_machine_learning.kernels import FidelityQuantumKernel
 
@@ -45,10 +45,6 @@ def qsvc_predict_many(X=None, y=None, n_qubits=5, random_state=42, p_reps=2, ent
     print(f"Rozmiar zbioru testowego: {len(X_test)}")
     
     print(f"Accuracy na danych testowych: {accuracy_score(y_test, y_pred_test):.3f}")
-    
-    print("Confusion Matrix:")
-    cm_test = confusion_matrix(y_test, y_pred_test)
-    print(cm_test)
     
     print("\nClassification Report:")
     cr_test = classification_report(y_test, y_pred_test, target_names=['Zdrowy', 'Alzheimer'])
